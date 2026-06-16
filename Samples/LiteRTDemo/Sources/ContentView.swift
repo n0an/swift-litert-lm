@@ -118,6 +118,17 @@ final class ChatViewModel: ObservableObject {
       }
       self.chat = chat
       phase = .ready
+      // Optional auto-demo (LITERT_DEMO=1): attach the bundled image and run one
+      // multimodal turn so the screen shows a real answer. Used to capture a
+      // working-app screenshot headlessly; no effect on normal use.
+      if ProcessInfo.processInfo.environment["LITERT_DEMO"] != nil {
+        if let url = Bundle.main.url(forResource: "apple", withExtension: "png"),
+          let data = try? Data(contentsOf: url) {
+          imageData = data
+          prompt = "What is in this photo? Answer in one short sentence."
+        }
+        await generate()
+      }
     } catch {
       phase = .error(error.localizedDescription)
     }
