@@ -75,6 +75,15 @@ self-test — text + image + audio, all working:
 ¹ image decode tok/s is statistically meaningless here (one-word answer). Peak
 footprint stayed at ~1.57 GB — far under the iPhone jetsam ceiling.
 
+**On decode speed.** The text decode rate is context-dependent: ~42 tok/s at
+short context, ~33 tok/s averaged over a 256-token fixed harness, ~24 tok/s
+over a real 110-word generation (decode slows as the KV cache grows). This is
+near the device's **memory-bandwidth ceiling** — decode is weight-bound, not
+compute-bound. The model bundles an MTP speculative-decoding drafter, but
+enabling it (`speculativeDecoding: true`) is flaky on this runtime build
+("Failed to create engine") and gives **no decode speedup** when it does engage,
+so it is **off by default**. (Run the probe yourself: `LITERT_BENCH=1`.)
+
 Three device findings, now baked into the catalog so the API "just works":
 
 - **Audio encoder must run on CPU.** The `.litertlm` marks the audio sections

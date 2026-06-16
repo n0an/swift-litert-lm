@@ -9,10 +9,22 @@ import SwiftUI
 
 @main
 struct LiteRTDemoApp: App {
+  init() {
+    // Make stdout unbuffered so headless self-test logs reach
+    // `devicectl --console` immediately — block buffering otherwise swallows
+    // them (a single small write can sit in the buffer indefinitely when piped).
+    setvbuf(stdout, nil, _IONBF, 0)
+    let env = ProcessInfo.processInfo.environment
+    print("APP: launched · BENCH=\(env["LITERT_BENCH"] ?? "nil") · G0=\(env["LITERT_G0_TEST"] ?? "nil")")
+    fflush(stdout)
+  }
+
   var body: some Scene {
     WindowGroup {
-      if G0SelfTest.isRequested {
-        G0RunnerView()
+      if BenchSelfTest.isRequested {
+        SelfTestRunnerView(title: "Running benchmark…") { await BenchSelfTest.run() }
+      } else if G0SelfTest.isRequested {
+        SelfTestRunnerView(title: "Running G0 self-test…") { await G0SelfTest.run() }
       } else {
         ContentView()
       }
@@ -20,22 +32,24 @@ struct LiteRTDemoApp: App {
   }
 }
 
-/// Minimal view shown while the headless G0 self-test runs; results go to the log.
-private struct G0RunnerView: View {
+/// Minimal view shown while a headless self-test runs; results go to the log.
+private struct SelfTestRunnerView: View {
+  let title: String
+  let action: () async -> Void
   @State private var started = false
+
   var body: some View {
     VStack(spacing: 12) {
       ProgressView()
-      Text("Running G0 self-test…")
-        .font(.headline)
-      Text("Results are logged with the “G0:” prefix.")
+      Text(title).font(.headline)
+      Text("Results are logged (filter by the test's prefix).")
         .font(.caption)
         .foregroundStyle(.secondary)
     }
     .task {
       guard !started else { return }
       started = true
-      await G0SelfTest.run()
+      await action()
     }
   }
 }

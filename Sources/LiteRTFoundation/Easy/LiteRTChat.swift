@@ -54,6 +54,9 @@ public final class LiteRTChat {
   ///     Easy mode refuses to load on a device that would likely jetsam mid-run.
   ///   - enableBenchmark: Turn on the engine's benchmark instrumentation so
   ///     `lastBenchmark()` reports real prefill/decode tokens-per-second.
+  ///   - speculativeDecoding: Use the model's multi-token-prediction (MTP) drafter
+  ///     for faster decode. Gemma 4 E2B bundles an MTP drafter; this is the lever
+  ///     behind its headline tokens/sec. Throws if the model lacks drafter support.
   ///   - onDownloadProgress: Called on the first run as the model downloads.
   /// - Throws: `LiteRTChatError` for memory/availability problems, `LiteRTLMError`
   ///   for engine failures, or a download error.
@@ -63,6 +66,7 @@ public final class LiteRTChat {
     storageDirectory: URL? = nil,
     allowUnsafeMemory: Bool = false,
     enableBenchmark: Bool = false,
+    speculativeDecoding: Bool = false,
     onDownloadProgress: (@Sendable (ModelDownloader.Progress) -> Void)? = nil
   ) async throws {
     // Memory gate: refuse rather than let the OS kill us partway through a load.
@@ -87,6 +91,7 @@ public final class LiteRTChat {
       ExperimentalFlags.visualTokenBudget = budget
     }
     if enableBenchmark { ExperimentalFlags.enableBenchmark = true }
+    ExperimentalFlags.enableSpeculativeDecoding = speculativeDecoding
 
     let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
     // Each tower's backend is dictated by the model's section constraints, not a
