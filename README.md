@@ -80,7 +80,7 @@ self-test — text + image + audio, all working:
 
 | Modality | Output | Decode | Prefill | TTFT | Footprint |
 |---|---|---|---|---|---|
-| Text (GPU) | correct one-sentence answer | ~25–42 tok/s | ~45–64 tok/s | 0.3–0.4 s | ~530 MB |
+| Text (GPU) | correct one-sentence answer | **~50 tok/s** (warm; ~44 cold) | ~300–1000 tok/s | ~0.1 s (warm) | ~530 MB |
 | Image (CPU encoder) | "Apple" for `apple.png` ✓ | — ¹ | ~780 tok/s | 0.6 s | ~1.57 GB |
 | Audio (CPU encoder) | "Have a wonderful day." ✓ | ~53 tok/s | ~1090 tok/s | 0.1 s | ~400 MB |
 
@@ -88,11 +88,11 @@ self-test — text + image + audio, all working:
 footprint stayed at ~1.57 GB — far under the iPhone jetsam ceiling.
 
 **On decode speed.** Decode is warm-up- and context-dependent. The *first*
-generation after load is cold (~33–44 tok/s) while the GPU decode kernels
-compile; once warm it settles at **~50 tok/s** on iPhone 17 Pro — in line with
-independent benchmarks and Google's 56.5 tok/s model-card figure. `LiteRTChat`
-runs a small **prewarm** during setup (`prewarm: true`) so your *first* message
-is already fast. Decode is weight-bandwidth-bound and tapers slightly as the KV
+generation after load is cold (~44 tok/s) while the GPU decode kernels compile;
+from the second turn it settles at **~50 tok/s** on iPhone 17 Pro (peak ~53) —
+in line with independent benchmarks and Google's 56.5 tok/s model-card figure.
+`LiteRTChat` runs a small **prewarm** during setup (`prewarm: true`) so your
+*first* message is already warm. Decode is weight-bandwidth-bound and tapers slightly as the KV
 cache grows. The bundled MTP speculative-decoding drafter is **not** a useful
 lever here — enabling it (`speculativeDecoding: true`) is flaky on this runtime
 build ("Failed to create engine") with no measured speedup — so it's off by
