@@ -25,9 +25,17 @@ struct LiteRTDemoApp: App {
 
   @ViewBuilder private var rootView: some View {
     #if canImport(FoundationModels)
-    if #available(iOS 27.0, macOS 27.0, *), G1SelfTest.isRequested {
-      SelfTestRunnerView(title: "Running G1 (Foundation Models) self-test…") {
-        await G1SelfTest.run()
+    if #available(iOS 27.0, macOS 27.0, *) {
+      if G1SelfTest.isRequested {
+        SelfTestRunnerView(title: "Running G1 (Foundation Models) self-test…") {
+          await G1SelfTest.run()
+        }
+      } else if FMMultimodalSelfTest.isRequested {
+        SelfTestRunnerView(title: "Running FM multimodal self-test…") {
+          await FMMultimodalSelfTest.run()
+        }
+      } else {
+        nonFMRoot
       }
     } else {
       nonFMRoot

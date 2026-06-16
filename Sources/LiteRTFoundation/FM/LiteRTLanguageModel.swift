@@ -17,8 +17,7 @@
 
 import Foundation
 import FoundationModels
-import ImageIO
-import UniformTypeIdentifiers
+import CoreGraphics
 import LiteRTLM
 
 /// A LiteRT-LM model exposed as an Apple Foundation Models backend.
@@ -44,10 +43,12 @@ public struct LiteRTLanguageModel: LanguageModel {
     let path = try await LiteRTChat.ensureModel(
       model, storageDirectory: storageDirectory, onProgress: onDownloadProgress)
     self.executorConfiguration = LiteRTExecutor.Configuration(model: model, modelPath: path)
-    // Vision is a declared FM capability (gates image attachments). Audio rides
-    // the custom-segment hook (LiteRTAudioSegment) and is not capability-gated.
-    self.capabilities = LanguageModelCapabilities(
-      capabilities: model.supportedModalities.contains(.vision) ? [.vision] : [])
+    // Declared capabilities: guided generation (best-effort schema-in-prompt; see
+    // the executor) and vision (gates image attachments). Audio/video ride the
+    // custom-segment hook and are not capability-gated.
+    var capabilities: [LanguageModelCapabilities.Capability] = [.guidedGeneration]
+    if model.supportedModalities.contains(.vision) { capabilities.append(.vision) }
+    self.capabilities = LanguageModelCapabilities(capabilities: capabilities)
   }
 }
 
@@ -84,7 +85,12 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     streamingInto channel: LanguageModelExecutorGenerationChannel
   ) async throws {
     let engine = try await self.engine.ready()
-    let plan = try Self.plan(from: request.transcript)
+    // Guided generation (G2): if the request carries a schema, encode it to JSON
+    // and steer the model toward it via the prompt (schema-in-prompt). FM parses
+    // the model's JSON into the @Generable type. This is soft guidance; hard
+    // constrained decoding (llguidance) is a follow-up.
+    let schemaJSON = request.schema.flatMap { try? Self.encodeSchema($0) }
+    let plan = try Self.plan(from: request.transcript, schemaJSON: schemaJSON)
 
     let conversation = try await engine.createConversation(
       with: ConversationConfig(
@@ -109,8 +115,9 @@ public final class LiteRTExecutor: LanguageModelExecutor {
   }
 
   /// Split the FM transcript into a system message, prior turns (history), and
-  /// the final user prompt that this turn should answer.
-  private static func plan(from transcript: Transcript) throws -> Plan {
+  /// the final user prompt that this turn should answer. When `schemaJSON` is
+  /// given, schema guidance is appended to the final prompt.
+  private static func plan(from transcript: Transcript, schemaJSON: String?) throws -> Plan {
     let entries = Array(transcript)
     guard
       let lastPromptIndex = entries.lastIndex(where: {
@@ -129,8 +136,18 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       case .instructions(let instructions):
         systemText.append(text(of: instructions.segments))
       case .prompt(let p):
-        let message = Message(contents: contents(of: p.segments), role: .user)
-        if i == lastPromptIndex { prompt = message } else { history.append(message) }
+        if i == lastPromptIndex {
+          var c = contents(of: p.segments)
+          if let schemaJSON, !schemaJSON.isEmpty {
+            c.append(
+              .text(
+                "\n\nRespond with ONLY a JSON object that conforms to this JSON schema. "
+                  + "Output valid JSON and nothing else:\n\(schemaJSON)"))
+          }
+          prompt = Message(contents: c, role: .user)
+        } else {
+          history.append(Message(contents: contents(of: p.segments), role: .user))
+        }
       case .response(let r):
         history.append(Message(contents: [.text(text(of: r.segments))], role: .model))
       case .toolCalls, .toolOutput, .reasoning:
@@ -155,6 +172,12 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     }.joined(separator: " ")
   }
 
+  /// Encode an FM `GenerationSchema` to a JSON Schema string (it's `Codable`).
+  private static func encodeSchema(_ schema: GenerationSchema) throws -> String {
+    let data = try JSONEncoder().encode(schema)
+    return String(data: data, encoding: .utf8) ?? ""
+  }
+
   /// Map FM segments to LiteRT content: text, image attachments, and audio via
   /// the `LiteRTAudioSegment` custom segment.
   private static func contents(of segments: [Transcript.Segment]) -> [Content] {
@@ -170,6 +193,8 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       case .custom(let custom):
         if let audio = custom as? LiteRTAudioSegment {
           out.append(.audioData(audio.content.data))
+        } else if let video = custom as? LiteRTVideoSegment {
+          out.append(contentsOf: video.content.frames.map { Content.imageData($0) })
         }
       case .structure:
         break  // structured (guided-generation) content — a later phase
@@ -178,17 +203,6 @@ public final class LiteRTExecutor: LanguageModelExecutor {
       }
     }
     return out.isEmpty ? [.text("")] : out
-  }
-
-  /// CGImage → PNG bytes (cross-platform, via ImageIO).
-  private static func pngData(from cgImage: CGImage) -> Data? {
-    let data = NSMutableData()
-    guard
-      let dest = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil)
-    else { return nil }
-    CGImageDestinationAddImage(dest, cgImage, nil)
-    guard CGImageDestinationFinalize(dest) else { return nil }
-    return data as Data
   }
 }
 
