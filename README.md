@@ -120,6 +120,31 @@ env var on launch): `LITERT_G0_TEST` (text+image+audio), `LITERT_MMCHAT`
 |---|---|---|---|
 | `.gemma4_E2B` | text · image · audio | ~2.6 GB | Default hero. The E2B variant whose vision path works on iOS. |
 
+## Shipping the model
+
+The model is **not** committed to git or baked into the app. By default
+`LiteRTChat` / `LiteRTLanguageModel` **download the `.litertlm` on first launch**
+from the catalog's Hugging Face `resolve` URL, store it in
+`Application Support/LiteRTModels` (persistent, excluded from iCloud backup), and
+reuse it afterward. The bundled downloader is chunked, resumable, single-flight,
+and idempotent — an already-present file is reused, never re-fetched. For
+multi-GB weights this is the right default: a small app binary, App Store
+friendly, and you can ship a new model without an app update.
+
+**Use your own model** — add a `LiteRTModel` catalog case (Hugging Face repo,
+file name, approximate size, minimum RAM) and call `LiteRTChat(.yourModel)`; the
+downloader does the rest. Point `downloadURL` at any host (your own CDN / S3) if
+you don't use Hugging Face.
+
+**Other options, and when they fit:**
+
+| Option | When to use |
+|---|---|
+| **Runtime download** (default) | Large weights like this 2.6 GB model. Recommended. |
+| **Bundle in the app** | Only small models (tens of MB) — a multi-GB `.ipa` hits App Store size / cellular-download limits. Since the downloader skips when the file is already in the storage dir, a model you pre-copy there "just works" through the Easy API (or use `EngineConfig(modelPath:)` with a `Bundle.main` path directly). |
+| **On-Demand Resources** | Apple-hosted, not counted in initial app size; per-tag size limits make a 2.6 GB model awkward (you'd split it). |
+| **Sideload / manual** | Dev or enterprise only — push the file into the app container and point `storageDirectory` at it. |
+
 ## Why we vendor the wrapper instead of depending on the upstream package
 
 The native runtime ships as prebuilt `xcframework`s attached to the official LiteRT-LM GitHub releases; we depend on those binary artifacts directly (they download cleanly over HTTPS). We deliberately **do not** add `google-ai-edge/litert-lm` as a SwiftPM git dependency: that repo LFS-tracks Android/Linux/Windows prebuilt libraries (`prebuilt/*/*.so`, `.dylib`, …) which are irrelevant to Apple platforms but make `swift package resolve` fragile (upstream issue #2407). Vendoring the small Apache-2.0 Swift wrapper under `Sources/LiteRTLM` keeps the on-ramp bulletproof. See `NOTICE`.
