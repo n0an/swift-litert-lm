@@ -114,16 +114,19 @@ public final class LiteRTChat {
     let engine = Engine(engineConfig: config)
     try await engine.initialize()  // runs on the engine actor, off the main thread
 
+    // A balanced default sampler unless the caller supplied one.
+    let activeSampler = try sampler ?? SamplerConfig(topK: 40, topP: 0.95, temperature: 0.8)
+
     // Prewarm on a throwaway conversation: the first generation compiles/warms the
-    // GPU decode kernels (cold ~33 → warm ~50 tok/s). Doing it here, on a separate
-    // conversation, keeps the user's real conversation history clean.
+    // GPU decode kernels (cold ~44 → warm ~50 tok/s). Doing it here, on a separate
+    // conversation (same sampler — a non-nil sampler avoids the benchmark-mode
+    // crash), keeps the user's real conversation history clean.
     if prewarm {
-      let warmup = try await engine.createConversation()
+      let warmup = try await engine.createConversation(
+        with: ConversationConfig(samplerConfig: activeSampler))
       for try await _ in warmup.sendMessageStream(Message("Hi")) {}
     }
 
-    // A balanced default sampler unless the caller supplied one.
-    let activeSampler = try sampler ?? SamplerConfig(topK: 40, topP: 0.95, temperature: 0.8)
     let conversation = try await engine.createConversation(
       with: ConversationConfig(samplerConfig: activeSampler))
 

@@ -248,7 +248,7 @@ final class ChatViewModel: ObservableObject {
     guard chat == nil, case .idle = phase else { return }
     phase = .loading(0)
     do {
-      let chat = try await LiteRTChat(.gemma4_E2B, modalities: .all, enableBenchmark: true) {
+      let chat = try await LiteRTChat(.gemma4_E2B, modalities: .all, enableBenchmark: true, prewarm: true) {
         [weak self] progress in
         Task { @MainActor in
           if let self, case .loading = self.phase { self.phase = .loading(progress.fraction) }
