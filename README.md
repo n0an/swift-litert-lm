@@ -13,7 +13,7 @@ This package puts two faces on Google's official [LiteRT-LM](https://github.com/
 - **Easy mode** — `LiteRTChat(.gemma4_E2B)`: auto-download, memory-safe, Metal GPU, multimodal. The fastest path from zero to a Gemma 4 chat on a real device.
 - **FM mode** — `LiteRTLanguageModel`: a backend for Apple's **Foundation Models** API. Drive LiteRT through `LanguageModelSession(model:)` with the full FM surface — `respond` / `streamResponse`, `@Generable` guided generation, `Tool` calling, and **image / audio / video understanding that Apple's own system model does not offer.** All device-verified on iPhone 17 Pro.
 
-Apple opened Foundation Models to custom backends in iOS 27 and blessed exactly two on-device ones — `CoreAILanguageModel` (its own) and `MLXLanguageModel`. **LiteRT is conspicuously absent.** `LiteRTLanguageModel` makes Google's runtime the natural third first-class FM backend on iPhone.
+Apple opened Foundation Models to custom backends in iOS 27 — any type conforming to its `LanguageModel` protocol can drive a `LanguageModelSession`. Apple's own conformers are `SystemLanguageModel` (on-device) and `PrivateCloudComputeLanguageModel` (Private Cloud Compute). `LiteRTLanguageModel` adds Google's runtime as a third-party **on-device** backend — Gemma 4 today, and any `.litertlm` you bring.
 
 ## Quickstart (Easy mode)
 
