@@ -208,6 +208,54 @@ public final class LiteRTChat {
       engine: engine, conversation: conversation)
   }
 
+  /// Bring up a chat session from **any Hugging Face repo** that hosts a
+  /// `.litertlm` — downloaded on first use, then run. Lets you try any community
+  /// model (e.g. `litert-community/gemma-4-E4B-it-litert-lm`) without a catalog
+  /// entry.
+  ///
+  /// - Parameters:
+  ///   - huggingFaceRepo: e.g. `"litert-community/gemma-4-E4B-it-litert-lm"`.
+  ///   - fileName: the `.litertlm` file in that repo (a repo may host several).
+  ///   - revision: git revision / branch (default `main`).
+  ///   - modalities: defaults to **text-only** (`[]`) — the safe choice for an
+  ///     unknown model; pass `.all` (or `.textImage`) only if you know the model
+  ///     ships those encoders, or engine init may refuse.
+  ///   - (other parameters as `init(modelFileURL:)`.)
+  public convenience init(
+    huggingFaceRepo: String,
+    fileName: String,
+    revision: String = "main",
+    modalities: Modality = [],
+    visionBackend: Backend = .cpu(),
+    audioBackend: Backend = .cpu(),
+    visualTokenBudget: Int32? = nil,
+    maxTokens: Int = 2048,
+    minimumDeviceRAM: Int64? = nil,
+    storageDirectory: URL? = nil,
+    enableBenchmark: Bool = false,
+    speculativeDecoding: Bool = false,
+    sampler: SamplerConfig? = nil,
+    prewarm: Bool = true,
+    onDownloadProgress: (@Sendable (ModelDownloader.Progress) -> Void)? = nil
+  ) async throws {
+    guard
+      let url = URL(
+        string: "https://huggingface.co/\(huggingFaceRepo)/resolve/\(revision)/\(fileName)?download=true")
+    else {
+      throw LiteRTChatError.modelFileNotFound(URL(fileURLWithPath: fileName))
+    }
+    let dir = try storageDirectory ?? Self.defaultStorageDirectory()
+    let dest = dir.appendingPathComponent(fileName)
+    try await ModelDownloader.shared.download(
+      from: url, to: dest, expectedBytes: nil, onProgress: onDownloadProgress)
+    try await self.init(
+      modelFileURL: dest, modalities: modalities,
+      visionBackend: visionBackend, audioBackend: audioBackend,
+      visualTokenBudget: visualTokenBudget, maxTokens: maxTokens,
+      minimumDeviceRAM: minimumDeviceRAM, enableBenchmark: enableBenchmark,
+      speculativeDecoding: speculativeDecoding, sampler: sampler, prewarm: prewarm)
+  }
+
   private init(
     model: LiteRTModel?, modalities: Modality, modelPath: String,
     engine: Engine, conversation: Conversation

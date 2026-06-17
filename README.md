@@ -152,6 +152,15 @@ file name, approximate size, minimum RAM) and call `LiteRTChat(.yourModel)`; the
 downloader does the rest. Point `downloadURL` at any host (your own CDN / S3) if
 you don't use Hugging Face.
 
+**Run any Hugging Face `.litertlm`** — point at any community repo (no catalog
+entry); it downloads on first use:
+
+```swift
+let chat = try await LiteRTChat(
+    huggingFaceRepo: "litert-community/gemma-4-E4B-it-litert-lm",
+    fileName: "gemma-4-E4B-it.litertlm")   // text-only by default; pass modalities: .all if it has them
+```
+
 **Load a local file directly** — for swapping your own (e.g. fine-tuned) models
 in and out while experimenting, skip the catalog and download entirely:
 
@@ -164,6 +173,9 @@ let chat = try await LiteRTChat(modelFileURL: url, modalities: .all)
 let model = try LiteRTLanguageModel(modelFileURL: url)
 let session = LanguageModelSession(model: model)
 ```
+
+The sample app has a **model picker** in the header that exercises all three —
+the bundled Gemma 4 E2B, any Hugging Face repo, or a local file.
 
 **Other options, and when they fit:**
 

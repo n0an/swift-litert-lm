@@ -48,6 +48,7 @@ struct ContentView: View {
   @State private var videoItem: PhotosPickerItem?
   @State private var input = "What can you do?"
   @State private var showFM = false
+  @State private var showModelPicker = false
   @FocusState private var inputFocused: Bool
 
   var body: some View {
@@ -67,6 +68,7 @@ struct ContentView: View {
     .task { await vm.loadIfNeeded() }
     .onChange(of: photoItem) { item in Task { await vm.attachPhoto(item) } }
     .onChange(of: videoItem) { item in Task { await vm.attachVideo(item) } }
+    .sheet(isPresented: $showModelPicker) { ModelPickerView(vm: vm) }
 
     #if canImport(FoundationModels)
     if #available(iOS 27.0, macOS 27.0, *) {
@@ -87,7 +89,16 @@ struct ContentView: View {
   private var header: some View {
     HStack(spacing: 8) {
       Image(systemName: "sparkles").foregroundStyle(.tint)
-      Text("Gemma 4 E2B").font(.headline)
+      Button {
+        showModelPicker = true
+      } label: {
+        HStack(spacing: 4) {
+          Text(vm.currentModelName).font(.headline).lineLimit(1)
+          Image(systemName: "chevron.down").font(.caption2.bold())
+        }
+        .foregroundStyle(.primary)
+      }
+      .disabled(vm.isGenerating)
       Spacer()
       fmButton
       switch vm.phase {
@@ -258,13 +269,115 @@ private struct MessageBubble: View {
   }
 }
 
+// MARK: - Model picker
+
+/// Choose the model: the bundled, device-verified Gemma 4 E2B, any Hugging Face
+/// `.litertlm` repo (downloaded on first use), or a local `.litertlm` file.
+private struct ModelPickerView: View {
+  @ObservedObject var vm: ChatViewModel
+  @Environment(\.dismiss) private var dismiss
+
+  @State private var repo = "litert-community/gemma-4-E4B-it-litert-lm"
+  @State private var file = "gemma-4-E4B-it.litertlm"
+  @State private var multimodal = false
+  @State private var showImporter = false
+
+  var body: some View {
+    NavigationStack {
+      List {
+        Section("Bundled (device-verified)") {
+          Button { pick(.bundledE2B) } label: {
+            row("Gemma 4 E2B", "text · image · audio · ~2.6 GB", selected: vm.source == .bundledE2B)
+          }
+        }
+
+        Section("Options for downloaded / local models") {
+          Toggle("Bring up image / audio towers", isOn: $multimodal)
+          Text("Off = text-only (safe default for an unknown model). Turn on only "
+            + "if the model ships vision/audio encoders, or loading may fail.")
+            .font(.caption).foregroundStyle(.secondary)
+        }
+
+        Section("Hugging Face — any .litertlm repo") {
+          Button {
+            pick(.huggingFace(
+              repo: "litert-community/gemma-4-E4B-it-litert-lm",
+              file: "gemma-4-E4B-it.litertlm", multimodal: multimodal))
+          } label: {
+            row("Gemma 4 E4B", "text · ~3.7 GB · downloads on first use", selected: false)
+          }
+          TextField("owner/repo", text: $repo)
+            .textInputAutocapitalization(.never).autocorrectionDisabled().font(.callout)
+          TextField("file.litertlm", text: $file)
+            .textInputAutocapitalization(.never).autocorrectionDisabled().font(.callout)
+          Button("Download & load") {
+            pick(.huggingFace(repo: repo, file: file, multimodal: multimodal))
+          }
+          .disabled(repo.isEmpty || !file.hasSuffix(".litertlm"))
+        }
+
+        Section("Local file") {
+          Button("Choose a .litertlm…") { showImporter = true }
+        }
+
+        Section {
+          Text("Only Gemma 4 E2B is verified on device here. Other models run "
+            + "through the same engine but aren't tested — bring any LiteRT-LM "
+            + "`.litertlm`.")
+            .font(.caption).foregroundStyle(.secondary)
+        }
+      }
+      .navigationTitle("Model")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Cancel") { dismiss() } } }
+      .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data]) { result in
+        if case .success(let url) = result { pick(.localFile(url, multimodal: multimodal)) }
+      }
+    }
+  }
+
+  private func pick(_ source: ChatViewModel.ModelSource) {
+    dismiss()
+    Task { await vm.switchModel(to: source) }
+  }
+
+  private func row(_ title: String, _ subtitle: String, selected: Bool) -> some View {
+    HStack {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title).font(.body.bold()).foregroundStyle(.primary)
+        Text(subtitle).font(.caption).foregroundStyle(.secondary)
+      }
+      Spacer()
+      if selected { Image(systemName: "checkmark").foregroundStyle(.tint) }
+    }
+  }
+}
+
 // MARK: - View model
 
 @MainActor
 final class ChatViewModel: ObservableObject {
   enum Phase: Equatable { case idle, loading(Double), ready, error(String) }
 
+  /// Where the model comes from. The bundled E2B is the verified default; the
+  /// other two let you run *any* LiteRT-LM model — downloaded from a Hugging Face
+  /// repo, or loaded from a local `.litertlm`.
+  enum ModelSource: Equatable {
+    case bundledE2B
+    case huggingFace(repo: String, file: String, multimodal: Bool)
+    case localFile(URL, multimodal: Bool)
+
+    var displayName: String {
+      switch self {
+      case .bundledE2B: return "Gemma 4 E2B"
+      case .huggingFace(_, let file, _): return file.replacingOccurrences(of: ".litertlm", with: "")
+      case .localFile(let url, _): return url.deletingPathExtension().lastPathComponent
+      }
+    }
+  }
+
   @Published var phase: Phase = .idle
+  @Published var source: ModelSource = .bundledE2B
   @Published var messages: [ChatMessage] = []
   @Published var attachedImage: Data?
   @Published var attachedVideoFrames: [Data]?
@@ -274,7 +387,10 @@ final class ChatViewModel: ObservableObject {
   @Published var isRecording = false
   @Published var scrollTick = 0
 
+  var currentModelName: String { source.displayName }
+
   private var chat: LiteRTChat?
+  private var securityScopedURL: URL?
   private let recorder = AudioRecorder()
 
   var isReady: Bool { if case .ready = phase { return true } else { return false } }
@@ -287,15 +403,46 @@ final class ChatViewModel: ObservableObject {
 
   func loadIfNeeded() async {
     guard chat == nil, case .idle = phase else { return }
+    await load(source)
+  }
+
+  /// Tear down the current model and load a different source (bundled / Hugging
+  /// Face / local file). Chat history is kept.
+  func switchModel(to newSource: ModelSource) async {
+    guard !isGenerating else { return }
+    releaseEngine()
+    source = newSource
+    await load(newSource)
+  }
+
+  private func load(_ src: ModelSource) async {
+    guard chat == nil else { return }
     phase = .loading(0)
-    do {
-      let chat = try await LiteRTChat(.gemma4_E2B, modalities: .all, enableBenchmark: true, prewarm: true) {
-        [weak self] progress in
-        Task { @MainActor in
-          if let self, case .loading = self.phase { self.phase = .loading(progress.fraction) }
-        }
+    let onProgress: @Sendable (ModelDownloader.Progress) -> Void = { [weak self] p in
+      Task { @MainActor in
+        if let self, case .loading = self.phase { self.phase = .loading(p.fraction) }
       }
-      self.chat = chat
+    }
+    do {
+      let loaded: LiteRTChat
+      switch src {
+      case .bundledE2B:
+        loaded = try await LiteRTChat(
+          .gemma4_E2B, modalities: .all, enableBenchmark: true, prewarm: true,
+          onDownloadProgress: onProgress)
+      case .huggingFace(let repo, let file, let multimodal):
+        loaded = try await LiteRTChat(
+          huggingFaceRepo: repo, fileName: file, modalities: multimodal ? .all : [],
+          enableBenchmark: true, prewarm: true, onDownloadProgress: onProgress)
+      case .localFile(let url, let multimodal):
+        // Hold the security scope open while the engine has the file mapped.
+        _ = url.startAccessingSecurityScopedResource()
+        securityScopedURL = url
+        loaded = try await LiteRTChat(
+          modelFileURL: url, modalities: multimodal ? .all : [],
+          enableBenchmark: true, prewarm: true)
+      }
+      self.chat = loaded
       phase = .ready
       if ProcessInfo.processInfo.environment["LITERT_DEMO"] != nil { await runDemo() }
     } catch {
@@ -304,11 +451,15 @@ final class ChatViewModel: ObservableObject {
   }
 
   /// Drop the Easy-mode engine (freeing its weights) and reset to `.idle` so a
-  /// later `loadIfNeeded()` rebuilds it. Used when handing memory to FM mode.
-  /// Chat history (`messages`) is kept so it's still on screen on return.
+  /// later `loadIfNeeded()` rebuilds it. Used when handing memory to FM mode or
+  /// before switching models. Chat history (`messages`) is kept.
   func releaseEngine() {
     chat = nil
     phase = .idle
+    if let url = securityScopedURL {
+      url.stopAccessingSecurityScopedResource()
+      securityScopedURL = nil
+    }
   }
 
   // MARK: Attachments
