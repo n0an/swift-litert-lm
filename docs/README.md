@@ -1,7 +1,9 @@
 # docs
 
-Place the demo recording here as **`demo.gif`** (referenced from the top-level
-`README.md`).
+The demo recording in the top-level `README.md` is **not committed to the repo**
+— it's hosted as a GitHub attachment (drop the file onto an issue/PR comment and
+use the resulting `user-attachments` URL in the `<img>` tag). This keeps the
+repository small; no binary `demo.gif` lives in git.
 
 ## Capturing it
 
@@ -20,3 +22,6 @@ manual typing.
    ffmpeg -i demo.mov -i palette.png \
      -filter_complex "fps=12,scale=400:-1:flags=lanczos[x];[x][1:v]paletteuse" demo.gif
    ```
+4. Upload `demo.gif` to a GitHub issue/PR comment and copy its
+   `https://github.com/user-attachments/assets/…` URL into the top-level
+   `README.md` `<img src=…>` (don't commit the file).

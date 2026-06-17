@@ -3,7 +3,7 @@
 **Run Gemma 4 (and other LiteRT-LM models) on iPhone — the easy way, and as an Apple Foundation Models backend.**
 
 <p align="center">
-  <img src="docs/demo.gif" alt="LiteRTDemo on iPhone 17 Pro" width="300">
+  <img src="https://github.com/user-attachments/assets/91567f7d-6916-4cca-a399-3c385c82ab51" alt="LiteRTDemo on iPhone 17 Pro" width="280">
 </p>
 
 > Gemma 4 E2B running fully on-device — text, photos, microphone audio, and video, in one chat, on the Metal GPU.
