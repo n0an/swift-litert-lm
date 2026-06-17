@@ -82,10 +82,10 @@ enum FMMultimodalSelfTest {
       }
     }
 
-    // Spoken-question audio: does the model ANSWER it (vs transcribe)?
-    if let q = Bundle.main.url(forResource: "question", withExtension: "wav") {
+    // Audio understanding can also answer a spoken question.
+    if let q = Bundle.main.url(forResource: "question", withExtension: "wav"),
+      let data = try? Data(contentsOf: q) {
       do {
-        let data = try Data(contentsOf: q)
         let answer = try await session.respond {
           LiteRTAudioSegment(data: data)
           "Answer the question that is asked in this audio."

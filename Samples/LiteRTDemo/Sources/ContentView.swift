@@ -347,8 +347,11 @@ final class ChatViewModel: ObservableObject {
     return ""
   }
 
-  /// Headless demo (LITERT_DEMO=1): one image turn so a screenshot shows a real chat.
+  /// Auto-demo (LITERT_DEMO=1): a couple of turns so a screen recording / GIF
+  /// shows a real multimodal chat without manual input.
   private func runDemo() async {
+    await send("In one short sentence, what can you do?")
+    try? await Task.sleep(nanoseconds: 600_000_000)
     if let url = Bundle.main.url(forResource: "apple", withExtension: "png"),
       let data = try? Data(contentsOf: url) {
       attachedImage = data
