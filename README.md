@@ -118,11 +118,10 @@ Three device findings, now baked into the catalog so the API "just works":
 - [x] Easy-mode sample app (`Samples/LiteRTDemo`, clone-and-run) + headless G0 self-test
 - [x] Multimodal chat verified on device: one `.all` engine handles text + image + audio in one conversation
 - [x] **G1** — `LiteRTLanguageModel` / `LiteRTExecutor`: `LanguageModelSession(model:)` drives LiteRT-LM end-to-end via the real FM API (`respond` + `streamResponse`), device-verified on iPhone 17 Pro
-- [x] Image through the FM API (`Transcript.AttachmentSegment` → LiteRT vision) — implemented
-- [x] Audio through the FM API via `LiteRTAudioSegment` (`Transcript.CustomSegment`) — implemented
-- [x] Video through the FM API via `LiteRTVideoSegment` + `VideoFrameSampler` (app-side frames) — implemented
-- [x] **G2** — guided generation: `@Generable` / `GenerationSchema` over the custom executor (schema-in-prompt; hard `llguidance`-constrained decoding is a follow-up) — implemented
-- [ ] On-device runtime verification of the FM multimodal + guided-gen paths (pending device)
+- [x] Image through the FM API (`Transcript.AttachmentSegment` → LiteRT vision)
+- [x] **Audio through the FM API** via `LiteRTAudioSegment` (`Transcript.CustomSegment`) — **device-verified** (transcribed audio through `LanguageModelSession`; a world-first)
+- [x] **G2** — guided generation: `@Generable` / `GenerationSchema` over the custom executor — **device-verified** (`respond(generating:)` → structured result; schema-in-prompt + JSON extraction, hard `llguidance` is a follow-up)
+- [x] Video through the FM API via `LiteRTVideoSegment` + `VideoFrameSampler` (app-side frames) — implemented (runtime needs a video asset)
 - [ ] Tool calling (FM `Tool` → LiteRT tool-calling), `llguidance` hard-constrained decoding
 
 ## License

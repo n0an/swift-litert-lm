@@ -92,18 +92,55 @@ public final class LiteRTExecutor: LanguageModelExecutor {
     let schemaJSON = request.schema.flatMap { try? Self.encodeSchema($0) }
     let plan = try Self.plan(from: request.transcript, schemaJSON: schemaJSON)
 
+    // Lower temperature for guided generation (more reliable JSON).
+    let temperature: Float = schemaJSON == nil ? 0.8 : 0.0
     let conversation = try await engine.createConversation(
       with: ConversationConfig(
         systemMessage: plan.systemMessage,
         initialMessages: plan.history,
-        samplerConfig: try? SamplerConfig(topK: 40, topP: 0.95, temperature: 0.8)))
+        samplerConfig: try? SamplerConfig(topK: 40, topP: 0.95, temperature: temperature)))
 
-    for try await chunk in conversation.sendMessageStream(plan.prompt) {
-      let delta = chunk.toString
-      if !delta.isEmpty {
-        await channel.send(.response(action: .appendText(delta, tokenCount: 1)))
+    if schemaJSON != nil {
+      // Guided: accumulate the full output, extract the JSON object (the model
+      // tends to wrap it in prose / code fences), and emit it once so FM can
+      // parse the @Generable type cleanly.
+      var full = ""
+      for try await chunk in conversation.sendMessageStream(plan.prompt) { full += chunk.toString }
+      let json = Self.extractJSONObject(from: full) ?? full
+      await channel.send(.response(action: .appendText(json, tokenCount: json.count)))
+    } else {
+      for try await chunk in conversation.sendMessageStream(plan.prompt) {
+        let delta = chunk.toString
+        if !delta.isEmpty {
+          await channel.send(.response(action: .appendText(delta, tokenCount: 1)))
+        }
       }
     }
+  }
+
+  /// Extract the first balanced JSON object from model text (strips prose/fences).
+  private static func extractJSONObject(from text: String) -> String? {
+    guard let start = text.firstIndex(of: "{") else { return nil }
+    var depth = 0
+    var inString = false
+    var escaped = false
+    var idx = start
+    while idx < text.endIndex {
+      let ch = text[idx]
+      if inString {
+        if escaped { escaped = false } else if ch == "\\" { escaped = true }
+        else if ch == "\"" { inString = false }
+      } else if ch == "\"" {
+        inString = true
+      } else if ch == "{" {
+        depth += 1
+      } else if ch == "}" {
+        depth -= 1
+        if depth == 0 { return String(text[start...idx]) }
+      }
+      idx = text.index(after: idx)
+    }
+    return nil
   }
 
   // MARK: Transcript → LiteRT messages
