@@ -31,6 +31,16 @@ let package = Package(
     .target(
       name: "LiteRTLMFoundationModels",
       dependencies: [.product(name: "LiteRTLM", package: "swift-litert-lm")]
-    )
+    ),
+    // Headless macOS functional test: drives the adapter end-to-end (respond /
+    // guided / tools) so it can be verified without a device.
+    //   swift run fmtest /path/to/model.litertlm
+    .executableTarget(
+      name: "fmtest",
+      dependencies: [
+        "LiteRTLMFoundationModels",
+        .product(name: "LiteRTLM", package: "swift-litert-lm"),
+      ]
+    ),
   ]
 )
