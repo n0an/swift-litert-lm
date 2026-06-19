@@ -91,10 +91,10 @@ concerns:
 - Guided generation and tool calling are **prompt-driven** (schema-in-prompt +
   JSON extraction), not hard constrained decoding. Reliable for simple/medium
   schemas on small models; a hard `llguidance` path is future work.
-- Verified on device with Gemma 4 E2B (iPhone 17 Pro / iOS 27), and headlessly on
-  **macOS** via the `fmtest` target (respond / guided / tools through a real
-  `LanguageModelSession`). Other models run through the same path but aren't
-  individually verified.
+- The lean adapter is verified for respond / guided / tools with Gemma 4 E2B on
+  **both macOS** (the `fmtest` target) **and iPhone 17 Pro / iOS 27** (the sample
+  app's `LITERT_LEAN_FM` self-test). Other models run through the same path but
+  aren't individually verified.
 
 ## Suggested PR staging
 
