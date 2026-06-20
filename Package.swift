@@ -66,7 +66,16 @@ let package = Package(
     .target(
       name: "LiteRTFoundation",
       dependencies: ["LiteRTLM"],
-      path: "Sources/LiteRTFoundation"
+      path: "Sources/LiteRTFoundation",
+      // FM mode (LiteRTLanguageModel, the Foundation Models LanguageModelSession
+      // backend) references iOS-27-SDK-only types (LanguageModel,
+      // LanguageModelExecutor, Transcript.CustomSegment). They are gated with
+      // `#if canImport(FoundationModels)` + `@available(iOS 27)`, but
+      // FoundationModels also exists on the iOS 26 SDK, so canImport is true and
+      // the files fail to compile on Xcode 26 (the @available is runtime-only).
+      // Exclude the FM folder so easy mode (LiteRTChat) builds on Xcode 26 /
+      // iOS 18+. Remove this exclude to re-enable FM mode under the iOS 27 SDK.
+      exclude: ["FM"]
     ),
   ]
 )
