@@ -28,7 +28,12 @@ public enum AudioInput: Sendable {
 }
 
 /// A ready-to-use LiteRT-LM chat session backed by the Metal GPU.
-public final class LiteRTChat {
+// @unchecked Sendable: the heavy work runs on the `Engine` actor, and the only
+// mutable member (`conversation`) is a single-threaded inference session that
+// the SDK already requires callers to use serially. Marking this Sendable lets
+// it be held by a Swift actor and used across isolation domains; callers must
+// still not issue overlapping generations on the same instance.
+public final class LiteRTChat: @unchecked Sendable {
 
   /// The catalog model this session is running, or `nil` when loaded from a
   /// custom local file via `init(modelFileURL:)`.
