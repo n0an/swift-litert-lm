@@ -39,7 +39,8 @@ public final class LiteRTChat {
   public let modelPath: String
 
   private let engine: Engine
-  private let conversation: Conversation
+  private let samplerConfig: SamplerConfig
+  private var conversation: Conversation
 
   // MARK: Lifecycle
 
@@ -133,7 +134,7 @@ public final class LiteRTChat {
 
     self.init(
       model: model, modalities: wanted, modelPath: path,
-      engine: engine, conversation: conversation)
+      engine: engine, samplerConfig: activeSampler, conversation: conversation)
   }
 
   /// Bring up a chat session from a **local `.litertlm` file** — no catalog, no
@@ -205,7 +206,7 @@ public final class LiteRTChat {
 
     self.init(
       model: nil, modalities: modalities, modelPath: url.path,
-      engine: engine, conversation: conversation)
+      engine: engine, samplerConfig: activeSampler, conversation: conversation)
   }
 
   /// Bring up a chat session from **any Hugging Face repo** that hosts a
@@ -258,12 +259,13 @@ public final class LiteRTChat {
 
   private init(
     model: LiteRTModel?, modalities: Modality, modelPath: String,
-    engine: Engine, conversation: Conversation
+    engine: Engine, samplerConfig: SamplerConfig, conversation: Conversation
   ) {
     self.model = model
     self.modalities = modalities
     self.modelPath = modelPath
     self.engine = engine
+    self.samplerConfig = samplerConfig
     self.conversation = conversation
   }
 
@@ -315,6 +317,16 @@ public final class LiteRTChat {
 
   /// Cancel the in-flight generation, if any.
   public func cancel() throws { try conversation.cancel() }
+
+  /// Discard all conversation history and start a fresh session on the same
+  /// (already-loaded) engine. Use before each independent, single-turn
+  /// generation - e.g. text enhancement - so the prompt never accumulates
+  /// across calls and overflows the context window. Cheap: it only recreates a
+  /// lightweight conversation, not the engine or the model.
+  public func resetConversation() async throws {
+    self.conversation = try await engine.createConversation(
+      with: ConversationConfig(samplerConfig: samplerConfig))
+  }
 
   /// Engine-measured benchmark info for the most recent turn (prefill/decode
   /// tokens-per-second, time-to-first-token). Requires `enableBenchmark: true`
