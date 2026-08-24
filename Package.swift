@@ -42,11 +42,32 @@ let package = Package(
         "https://github.com/google-ai-edge/LiteRT-LM/releases/download/\(liteRTLMVersion)/CLiteRTLM.xcframework.zip",
       checksum: "7ff01c42106b754748b5dd3036a4a57161b25ebf523e705bebc1219061852362"
     ),
+    // The official macOS artifact is a *library* xcframework carrying
+    // `Headers/module.modulemap`, which Xcode copies to
+    // `Build/Products/<config>/include/module.modulemap`. Any other library
+    // xcframework in the same app does the same, and the build then fails with
+    // "Multiple commands produce .../include/module.modulemap" (hit with
+    // FluidAudio's NemoTextProcessing). The iOS artifact is framework-style and
+    // is self-contained, so only macOS is affected.
+    //
+    // Fix: ship the macOS dylib with no headers, and declare the `CLiteRTLM`
+    // module from source instead (`Sources/CLiteRTLMHeaders/include`). Nothing
+    // lands in the shared products include dir, so nothing can collide.
     .binaryTarget(
       name: "CLiteRTLM_mac",
       url:
-        "https://github.com/google-ai-edge/LiteRT-LM/releases/download/\(liteRTLMVersion)/CLiteRTLM_mac.xcframework.zip",
-      checksum: "ec9ffe230dc39117a7fc8933b1cc15910454027fee6d3041534ab7cf17313981"
+        "https://github.com/n0an/swift-litert-lm/releases/download/v0.13.1-macos-noheaders/CLiteRTLM_mac-noheaders.xcframework.zip",
+      checksum: "72d0d8691a0e858b05d745e895ed359b91e88923ee80084d14fc744688b8f8b5"
+    ),
+
+    // Declares the `CLiteRTLM` module for macOS from the same headers the
+    // official artifact ships (Apache-2.0, see NOTICE). The module name comes
+    // from the checked-in module map, so `import CLiteRTLM` resolves the same
+    // way it does against the iOS framework.
+    .target(
+      name: "CLiteRTLMHeaders",
+      path: "Sources/CLiteRTLMHeaders",
+      publicHeadersPath: "include"
     ),
 
     // ── Vendored official Swift wrapper (Apache-2.0, see NOTICE) ─────────────
@@ -55,6 +76,7 @@ let package = Package(
       dependencies: [
         .target(name: "CLiteRTLM", condition: .when(platforms: [.iOS])),
         .target(name: "CLiteRTLM_mac", condition: .when(platforms: [.macOS])),
+        .target(name: "CLiteRTLMHeaders", condition: .when(platforms: [.macOS])),
       ],
       path: "Sources/LiteRTLM",
       linkerSettings: [

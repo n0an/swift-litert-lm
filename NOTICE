@@ -7,6 +7,15 @@ This product includes software developed by Google LLC.
 Vendored components
 ────────────────────────────────────────────────────────────────────────────
 
+Sources/CLiteRTLMHeaders/include/
+    engine.h, capabilities_c.h and module.modulemap, copied verbatim from the
+    macOS xcframework of google-ai-edge/LiteRT-LM release v0.13.1, licensed
+    under the Apache License, Version 2.0. Original copyright Google LLC.
+
+    They are checked in so the macOS build can declare the `CLiteRTLM` module
+    from source, letting the shipped macOS artifact drop its own headers - see
+    the comment above the `CLiteRTLM_mac` target in Package.swift.
+
 Sources/LiteRTLM/
     The thin Swift wrapper around the LiteRT-LM C API. Vendored verbatim from
     google-ai-edge/litert-lm, release v0.13.1, licensed under the Apache
